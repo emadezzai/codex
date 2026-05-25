@@ -44,7 +44,7 @@ const AMAZON_BEDROCK_MANTLE_CLIENT_AGENT_HEADER: &str = "x-amzn-mantle-client-ag
 const AMAZON_BEDROCK_MANTLE_CLIENT_AGENT_VALUE: &str = "codex";
 const MINIMAX_PROVIDER_NAME: &str = "MiniMax";
 pub const MINIMAX_PROVIDER_ID: &str = "minimax";
-pub const MINIMAX_DEFAULT_BASE_URL: &str = "https://api.minimax.io/anthropic";
+pub const MINIMAX_DEFAULT_BASE_URL: &str = "https://api.minimax.io/v1";
 pub const MINIMAX_API_KEY_ENV: &str = "MINIMAX_API_KEY";
 const CHAT_WIRE_API_REMOVED_ERROR: &str = "`wire_api = \"chat\"` is no longer supported.\nHow to fix: set `wire_api = \"responses\"` in your provider config.\nMore info: https://github.com/openai/codex/discussions/7782";
 pub const LEGACY_OLLAMA_CHAT_PROVIDER_ID: &str = "ollama-chat";
@@ -59,6 +59,9 @@ pub enum WireApi {
     Responses,
     /// The Anthropic Messages API exposed at `/v1/messages`.
     Anthropic,
+    /// The OpenAI Chat Completions API at `/v1/chat/completions`.
+    #[serde(rename = "chat_completions")]
+    ChatCompletions,
 }
 
 impl fmt::Display for WireApi {
@@ -66,6 +69,7 @@ impl fmt::Display for WireApi {
         let value = match self {
             Self::Responses => "responses",
             Self::Anthropic => "anthropic",
+            Self::ChatCompletions => "chat_completions",
         };
         f.write_str(value)
     }
@@ -80,10 +84,11 @@ impl<'de> Deserialize<'de> for WireApi {
         match value.as_str() {
             "responses" => Ok(Self::Responses),
             "anthropic" => Ok(Self::Anthropic),
+            "chat_completions" => Ok(Self::ChatCompletions),
             "chat" => Err(serde::de::Error::custom(CHAT_WIRE_API_REMOVED_ERROR)),
             _ => Err(serde::de::Error::unknown_variant(
                 &value,
-                &["responses", "anthropic"],
+                &["responses", "anthropic", "chat_completions"],
             )),
         }
     }
@@ -406,7 +411,7 @@ impl ModelProviderInfo {
             experimental_bearer_token: None,
             auth: None,
             aws: None,
-            wire_api: WireApi::Anthropic,
+            wire_api: WireApi::ChatCompletions,
             query_params: None,
             http_headers: None,
             env_http_headers: None,

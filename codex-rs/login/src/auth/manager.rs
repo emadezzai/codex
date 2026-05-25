@@ -549,8 +549,8 @@ pub fn login_with_minimax_api_key(
     api_key: &str,
     auth_credentials_store_mode: AuthCredentialsStoreMode,
 ) -> std::io::Result<()> {
-    let mut auth_dot_json = load_auth_dot_json(codex_home, auth_credentials_store_mode)?
-        .unwrap_or_default();
+    let mut auth_dot_json =
+        load_auth_dot_json(codex_home, auth_credentials_store_mode)?.unwrap_or_default();
     auth_dot_json.minimax_api_key = Some(api_key.to_string());
     save_auth(codex_home, &auth_dot_json, auth_credentials_store_mode)
 }
@@ -782,8 +782,11 @@ async fn load_auth(
     // Fall back to the configured persistent store (file/keyring/auto) for managed auth.
     let storage = create_auth_storage(codex_home.to_path_buf(), auth_credentials_store_mode);
     let auth_dot_json = match storage.load()? {
-        Some(auth) => auth,
-        None => return Ok(None),
+        Some(auth) if auth.has_openai_credentials() => auth,
+        // auth.json exists but contains only provider-specific keys (e.g.
+        // minimax_api_key) and no OpenAI credentials — treat as unauthenticated
+        // so we don't incorrectly enable ChatGPT-backed features.
+        Some(_) | None => return Ok(None),
     };
 
     let auth = CodexAuth::from_auth_dot_json(
@@ -995,7 +998,21 @@ impl AuthDotJson {
         if self.openai_api_key.is_some() {
             return ApiAuthMode::ApiKey;
         }
+        if self.agent_identity.is_some() {
+            return ApiAuthMode::AgentIdentity;
+        }
         ApiAuthMode::Chatgpt
+    }
+
+    /// Returns `true` when the record contains at least one OpenAI/ChatGPT
+    /// credential. When only provider-specific keys (e.g. `minimax_api_key`)
+    /// are present this returns `false`, preventing Codex from treating the
+    /// session as a ChatGPT session.
+    fn has_openai_credentials(&self) -> bool {
+        self.auth_mode.is_some()
+            || self.openai_api_key.is_some()
+            || self.agent_identity.is_some()
+            || self.tokens.is_some()
     }
 
     fn storage_mode(

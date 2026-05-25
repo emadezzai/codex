@@ -1,4 +1,5 @@
 pub(crate) mod anthropic;
+pub(crate) mod chat_completions;
 pub(crate) mod headers;
 pub(crate) mod responses;
 

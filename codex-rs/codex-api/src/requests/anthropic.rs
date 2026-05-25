@@ -261,19 +261,37 @@ fn parse_image_url(url: &str) -> Option<AnthropicImageSource> {
 }
 
 fn translate_tool(openai_tool: &Value) -> Option<AnthropicTool> {
-    let function = openai_tool.get("function")?;
-    let name = function.get("name")?.as_str()?.to_string();
-    let description = function
-        .get("description")
-        .and_then(|d| d.as_str())
-        .unwrap_or("")
-        .to_string();
-    let input_schema = function.get("parameters").cloned().unwrap_or_else(|| {
-        serde_json::json!({
-            "type": "object",
-            "properties": {}
-        })
-    });
+    let (name, description, input_schema) = if let Some(function) = openai_tool.get("function") {
+        // Chat Completions format: {"type": "function", "function": {"name": ..., "parameters": ...}}
+        let name = function.get("name")?.as_str()?.to_string();
+        let description = function
+            .get("description")
+            .and_then(|d| d.as_str())
+            .unwrap_or("")
+            .to_string();
+        let input_schema = function.get("parameters").cloned().unwrap_or_else(|| {
+            serde_json::json!({
+                "type": "object",
+                "properties": {}
+            })
+        });
+        (name, description, input_schema)
+    } else {
+        // Responses API format: {"type": "function", "name": ..., "parameters": ...}
+        let name = openai_tool.get("name")?.as_str()?.to_string();
+        let description = openai_tool
+            .get("description")
+            .and_then(|d| d.as_str())
+            .unwrap_or("")
+            .to_string();
+        let input_schema = openai_tool.get("parameters").cloned().unwrap_or_else(|| {
+            serde_json::json!({
+                "type": "object",
+                "properties": {}
+            })
+        });
+        (name, description, input_schema)
+    };
     Some(AnthropicTool {
         name,
         description,

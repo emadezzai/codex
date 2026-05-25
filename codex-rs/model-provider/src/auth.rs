@@ -147,8 +147,10 @@ mod tests {
     fn unauthenticated_auth_provider_adds_no_headers() {
         let provider =
             create_oss_provider_with_base_url("http://localhost:11434/v1", WireApi::Responses);
-        let auth = resolve_provider_auth(/*auth*/ None, &provider, /*provider_key_fallback*/ None)
-            .expect("auth should resolve");
+        let auth = resolve_provider_auth(
+            /*auth*/ None, &provider, /*provider_key_fallback*/ None,
+        )
+        .expect("auth should resolve");
 
         assert!(auth.to_auth_headers().is_empty());
     }

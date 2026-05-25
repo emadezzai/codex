@@ -256,7 +256,7 @@ async fn anthropic_stream_parses_text_and_completed_end_to_end() -> Result<()> {
         .filter(|ev| !matches!(ev, ResponseEvent::RateLimits(_)))
         .collect();
 
-    assert_eq!(events.len(), 6);
+    assert_eq!(events.len(), 7);
 
     assert!(matches!(events[0], ResponseEvent::Created));
     if let ResponseEvent::ServerModel(m) = &events[1] {
@@ -264,17 +264,22 @@ async fn anthropic_stream_parses_text_and_completed_end_to_end() -> Result<()> {
     } else {
         panic!("expected ServerModel");
     }
-    if let ResponseEvent::OutputTextDelta(d) = &events[2] {
+    if let ResponseEvent::OutputItemAdded(ResponseItem::Message { role, .. }) = &events[2] {
+        assert_eq!(role, "assistant");
+    } else {
+        panic!("expected OutputItemAdded");
+    }
+    if let ResponseEvent::OutputTextDelta(d) = &events[3] {
         assert_eq!(d, "Hello");
     } else {
         panic!("expected OutputTextDelta");
     }
-    if let ResponseEvent::OutputTextDelta(d) = &events[3] {
+    if let ResponseEvent::OutputTextDelta(d) = &events[4] {
         assert_eq!(d, " World");
     } else {
         panic!("expected OutputTextDelta");
     }
-    if let ResponseEvent::OutputItemDone(ResponseItem::Message { role, content, .. }) = &events[4] {
+    if let ResponseEvent::OutputItemDone(ResponseItem::Message { role, content, .. }) = &events[5] {
         assert_eq!(role, "assistant");
         assert_eq!(content.len(), 1);
         if let codex_protocol::models::ContentItem::OutputText { text } = &content[0] {
@@ -289,7 +294,7 @@ async fn anthropic_stream_parses_text_and_completed_end_to_end() -> Result<()> {
         response_id,
         token_usage,
         end_turn,
-    } = &events[5]
+    } = &events[6]
     {
         assert_eq!(response_id, "msg1");
         assert!(end_turn.unwrap_or(false));

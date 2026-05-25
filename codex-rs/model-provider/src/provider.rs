@@ -345,31 +345,33 @@ mod tests {
     }
 
     fn remote_model(slug: &str) -> ModelInfo {
-        serde_json::from_value(json!({
-            "slug": slug,
-            "display_name": slug,
-            "description": null,
-            "default_reasoning_level": "medium",
-            "supported_reasoning_levels": [],
-            "shell_type": "shell_command",
-            "visibility": "list",
-            "supported_in_api": true,
-            "priority": 0,
-            "upgrade": null,
-            "base_instructions": "base instructions",
-            "supports_reasoning_summaries": false,
-            "support_verbosity": false,
-            "default_verbosity": null,
-            "apply_patch_tool_type": null,
-            "truncation_policy": {"mode": "bytes", "limit": 10_000},
-            "supports_parallel_tool_calls": false,
-            "supports_image_detail_original": false,
-            "context_window": 272_000,
-            "max_context_window": 272_000,
-            "experimental_supported_tools": [],
-        }))
-        .expect("valid model"),
-        tier: None,
+        ModelInfo {
+            tier: None,
+            ..serde_json::from_value(json!({
+                "slug": slug,
+                "display_name": slug,
+                "description": null,
+                "default_reasoning_level": "medium",
+                "supported_reasoning_levels": [],
+                "shell_type": "shell_command",
+                "visibility": "list",
+                "supported_in_api": true,
+                "priority": 0,
+                "upgrade": null,
+                "base_instructions": "base instructions",
+                "supports_reasoning_summaries": false,
+                "support_verbosity": false,
+                "default_verbosity": null,
+                "apply_patch_tool_type": null,
+                "truncation_policy": {"mode": "bytes", "limit": 10_000},
+                "supports_parallel_tool_calls": false,
+                "supports_image_detail_original": false,
+                "context_window": 272_000,
+                "max_context_window": 272_000,
+                "experimental_supported_tools": [],
+            }))
+            .expect("valid model")
+        }
     }
 
     #[test]

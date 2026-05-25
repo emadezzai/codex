@@ -303,11 +303,7 @@ impl AccountRequestProcessor {
         }
     }
 
-    async fn login_minimax_api_key_v2(
-        &self,
-        request_id: ConnectionRequestId,
-        api_key: String,
-    ) {
+    async fn login_minimax_api_key_v2(&self, request_id: ConnectionRequestId, api_key: String) {
         let result = self
             .save_minimax_api_key(&api_key)
             .map(|()| LoginAccountResponse::MinimaxApiKey {});

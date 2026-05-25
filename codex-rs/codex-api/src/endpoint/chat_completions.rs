@@ -1,4 +1,4 @@
-//! Anthropic Messages client endpoint.
+//! OpenAI Chat Completions client endpoint.
 
 use crate::auth::SharedAuthProvider;
 use crate::common::ResponseStream;
@@ -8,11 +8,11 @@ use crate::endpoint::session::EndpointSession;
 use crate::error::ApiError;
 use crate::provider::Provider;
 use crate::requests::Compression;
-use crate::requests::anthropic::translate_request;
+use crate::requests::chat_completions::translate_request;
 use crate::requests::headers::build_session_headers;
 use crate::requests::headers::insert_header;
 use crate::requests::headers::subagent_header;
-use crate::sse::anthropic::spawn_response_stream;
+use crate::sse::chat_completions::spawn_response_stream;
 use crate::telemetry::SseTelemetry;
 use codex_client::HttpTransport;
 use codex_client::RequestCompression;
@@ -25,12 +25,12 @@ use std::sync::Arc;
 use std::sync::OnceLock;
 use tracing::instrument;
 
-pub struct AnthropicMessagesClient<T: HttpTransport> {
+pub struct ChatCompletionsClient<T: HttpTransport> {
     session: EndpointSession<T>,
     sse_telemetry: Option<Arc<dyn SseTelemetry>>,
 }
 
-impl<T: HttpTransport> AnthropicMessagesClient<T> {
+impl<T: HttpTransport> ChatCompletionsClient<T> {
     pub fn new(transport: T, provider: Provider, auth: SharedAuthProvider) -> Self {
         Self {
             session: EndpointSession::new(transport, provider, auth),
@@ -50,17 +50,17 @@ impl<T: HttpTransport> AnthropicMessagesClient<T> {
     }
 
     fn path() -> &'static str {
-        "v1/messages"
+        "chat/completions"
     }
 
     #[instrument(
-        name = "anthropic.stream_request",
+        name = "chat_completions.stream_request",
         level = "info",
         skip_all,
         fields(
-            transport = "anthropic_http",
+            transport = "chat_completions_http",
             http.method = "POST",
-            api.path = "messages"
+            api.path = "chat/completions"
         )
     )]
     pub async fn stream_request(
@@ -77,9 +77,10 @@ impl<T: HttpTransport> AnthropicMessagesClient<T> {
             turn_state,
         } = options;
 
-        let anthropic_req = translate_request(&request);
-        let body = serde_json::to_value(&anthropic_req)
-            .map_err(|e| ApiError::Stream(format!("failed to encode Anthropic request: {e}")))?;
+        let chat_req = translate_request(&request);
+        let body = serde_json::to_value(&chat_req).map_err(|e| {
+            ApiError::Stream(format!("failed to encode Chat Completions request: {e}"))
+        })?;
 
         let mut headers = extra_headers;
         if let Some(ref thread_id) = thread_id {

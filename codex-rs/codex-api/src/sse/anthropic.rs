@@ -13,6 +13,7 @@ use codex_protocol::models::ResponseItem;
 use codex_protocol::protocol::TokenUsage;
 use eventsource_stream::Eventsource;
 use futures::StreamExt;
+use regex_lite::Regex;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -57,6 +58,75 @@ pub fn spawn_response_stream(
         rx_event,
         upstream_request_id,
     }
+}
+
+struct ExtractedXmlToolCall {
+    name: String,
+    arguments: String,
+}
+
+/// Some providers (e.g. MiniMax) emit tool calls as XML text inside regular
+/// `text` content blocks instead of using Anthropic-native `tool_use` blocks.
+/// This function extracts any `<tool_call>` blocks and parses their tool name
+/// and parameter attributes.
+fn extract_xml_tool_calls(text: &str) -> (String, Vec<ExtractedXmlToolCall>) {
+    let mut xml_tool_calls = Vec::new();
+    let tool_call_re = Regex::new(r"(?s)<tool_call>(.*?)</tool_call>").unwrap();
+    let name_re = Regex::new(r#"^\s*(?:"([^"]+)"|'([^']+)'|([a-zA-Z_][a-zA-Z0-9_-]*))"#).unwrap();
+    let param_re =
+        Regex::new(r#"([a-zA-Z_][a-zA-Z0-9_-]*)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))"#).unwrap();
+
+    let mut remaining_text = String::new();
+    let mut last_idx = 0;
+
+    for caps in tool_call_re.captures_iter(text) {
+        let full_match = caps.get(0).unwrap();
+        let start = full_match.start();
+        let end = full_match.end();
+
+        remaining_text.push_str(&text[last_idx..start]);
+        last_idx = end;
+
+        let inner = &caps[1];
+        if let Some(name_caps) = name_re.captures(inner) {
+            let name = name_caps
+                .get(1)
+                .or_else(|| name_caps.get(2))
+                .or_else(|| name_caps.get(3))
+                .map(|m| m.as_str())
+                .unwrap_or_default()
+                .to_string();
+
+            if !name.is_empty() {
+                let mut args_map = serde_json::Map::new();
+                for param_caps in param_re.captures_iter(inner) {
+                    let key = param_caps
+                        .get(1)
+                        .map(|m| m.as_str())
+                        .unwrap_or_default()
+                        .to_string();
+                    let val = param_caps
+                        .get(2)
+                        .or_else(|| param_caps.get(3))
+                        .or_else(|| param_caps.get(4))
+                        .map(|m| m.as_str())
+                        .unwrap_or_default()
+                        .to_string();
+                    if !key.is_empty() {
+                        args_map.insert(key, serde_json::Value::String(val));
+                    }
+                }
+
+                let arguments = serde_json::to_string(&serde_json::Value::Object(args_map))
+                    .unwrap_or_else(|_| "{}".to_string());
+
+                xml_tool_calls.push(ExtractedXmlToolCall { name, arguments });
+            }
+        }
+    }
+
+    remaining_text.push_str(&text[last_idx..]);
+    (remaining_text, xml_tool_calls)
 }
 
 #[derive(Debug, Deserialize)]
@@ -271,8 +341,7 @@ pub async fn process_sse(
                         .await;
                 }
                 AnthropicContentBlockStartInfo::Thinking { thinking } => {
-                    let reas_id =
-                        format!("reas-{}-{index}", chrono::Utc::now().timestamp_millis());
+                    let reas_id = format!("reas-{}-{index}", chrono::Utc::now().timestamp_millis());
                     active_blocks.insert(
                         index,
                         ContentBlockState::Thinking {
@@ -325,7 +394,10 @@ pub async fn process_sse(
                                 .await;
                         }
                         AnthropicContentBlockDeltaInfo::ThinkingDelta { thinking } => {
-                            if let ContentBlockState::Thinking { thinking: accum, .. } = state {
+                            if let ContentBlockState::Thinking {
+                                thinking: accum, ..
+                            } = state
+                            {
                                 accum.push_str(&thinking);
                             }
                             let _ = tx_event
@@ -360,13 +432,58 @@ pub async fn process_sse(
                 if let Some(state) = active_blocks.remove(&index) {
                     match state {
                         ContentBlockState::Text { id, text } => {
-                            let item = ResponseItem::Message {
-                                id: Some(id),
-                                role: "assistant".to_string(),
-                                content: vec![ContentItem::OutputText { text }],
-                                phase: None,
-                            };
-                            let _ = tx_event.send(Ok(ResponseEvent::OutputItemDone(item))).await;
+                            let (remaining_text, xml_tool_calls) = extract_xml_tool_calls(&text);
+
+                            if xml_tool_calls.is_empty() {
+                                let item = ResponseItem::Message {
+                                    id: Some(id),
+                                    role: "assistant".to_string(),
+                                    content: vec![ContentItem::OutputText { text }],
+                                    phase: None,
+                                };
+                                let _ =
+                                    tx_event.send(Ok(ResponseEvent::OutputItemDone(item))).await;
+                            } else {
+                                debug!(
+                                    "extracted {} XML tool call(s) from text block",
+                                    xml_tool_calls.len()
+                                );
+                                let text_content = if remaining_text.is_empty() {
+                                    vec![]
+                                } else {
+                                    vec![ContentItem::OutputText {
+                                        text: remaining_text,
+                                    }]
+                                };
+                                let item = ResponseItem::Message {
+                                    id: Some(id),
+                                    role: "assistant".to_string(),
+                                    content: text_content,
+                                    phase: None,
+                                };
+                                let _ =
+                                    tx_event.send(Ok(ResponseEvent::OutputItemDone(item))).await;
+
+                                for tc in xml_tool_calls {
+                                    let tc_id = format!(
+                                        "xml-{}",
+                                        chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0)
+                                    );
+                                    let tc_item = ResponseItem::FunctionCall {
+                                        id: Some(tc_id.clone()),
+                                        name: tc.name,
+                                        namespace: None,
+                                        arguments: tc.arguments,
+                                        call_id: tc_id,
+                                    };
+                                    let _ = tx_event
+                                        .send(Ok(ResponseEvent::OutputItemAdded(tc_item.clone())))
+                                        .await;
+                                    let _ = tx_event
+                                        .send(Ok(ResponseEvent::OutputItemDone(tc_item)))
+                                        .await;
+                                }
+                            }
                         }
                         ContentBlockState::Thinking { id, thinking } => {
                             let item = ResponseItem::Reasoning {
@@ -425,5 +542,53 @@ pub async fn process_sse(
                 return;
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use pretty_assertions::assert_eq;
+
+    #[test]
+    fn test_extract_xml_tool_calls_no_calls() {
+        let text = "Hello world, no tool calls here.";
+        let (remaining, calls) = extract_xml_tool_calls(text);
+        assert_eq!(remaining, "Hello world, no tool calls here.");
+        assert!(calls.is_empty());
+    }
+
+    #[test]
+    fn test_extract_xml_tool_calls_single_quoted_name() {
+        let text = "Here is a call: <tool_call>\n\"open_file\" path=\"/path/to/file.txt\"\n</tool_call>\nHope that helps.";
+        let (remaining, calls) = extract_xml_tool_calls(text);
+        assert_eq!(remaining.trim(), "Here is a call: \nHope that helps.");
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].name, "open_file");
+        assert_eq!(calls[0].arguments, "{\"path\":\"/path/to/file.txt\"}");
+    }
+
+    #[test]
+    fn test_extract_xml_tool_calls_unquoted_name_and_multiple_params() {
+        let text = "Running... <tool_call>\nrun_command command=\"cargo build\" Cwd=\"/workspace\"\n</tool_call>\nDone.";
+        let (remaining, calls) = extract_xml_tool_calls(text);
+        assert_eq!(remaining.trim(), "Running... \nDone.");
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].name, "run_command");
+        let parsed_args: serde_json::Value = serde_json::from_str(&calls[0].arguments).unwrap();
+        assert_eq!(parsed_args["command"], "cargo build");
+        assert_eq!(parsed_args["Cwd"], "/workspace");
+    }
+
+    #[test]
+    fn test_extract_xml_tool_calls_multiple_calls() {
+        let text = "First: <tool_call>\"t1\" p=\"v1\"</tool_call> and second: <tool_call>\"t2\" p=\"v2\"</tool_call>.";
+        let (remaining, calls) = extract_xml_tool_calls(text);
+        assert_eq!(remaining, "First:  and second: .");
+        assert_eq!(calls.len(), 2);
+        assert_eq!(calls[0].name, "t1");
+        assert_eq!(calls[0].arguments, "{\"p\":\"v1\"}");
+        assert_eq!(calls[1].name, "t2");
+        assert_eq!(calls[1].arguments, "{\"p\":\"v2\"}");
     }
 }
