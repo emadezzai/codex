@@ -42,6 +42,10 @@ pub const AMAZON_BEDROCK_DEFAULT_BASE_URL: &str =
     "https://bedrock-mantle.us-east-1.api.aws/openai/v1";
 const AMAZON_BEDROCK_MANTLE_CLIENT_AGENT_HEADER: &str = "x-amzn-mantle-client-agent";
 const AMAZON_BEDROCK_MANTLE_CLIENT_AGENT_VALUE: &str = "codex";
+const MINIMAX_PROVIDER_NAME: &str = "MiniMax";
+pub const MINIMAX_PROVIDER_ID: &str = "minimax";
+pub const MINIMAX_DEFAULT_BASE_URL: &str = "https://api.minimax.io/anthropic";
+pub const MINIMAX_API_KEY_ENV: &str = "MINIMAX_API_KEY";
 const CHAT_WIRE_API_REMOVED_ERROR: &str = "`wire_api = \"chat\"` is no longer supported.\nHow to fix: set `wire_api = \"responses\"` in your provider config.\nMore info: https://github.com/openai/codex/discussions/7782";
 pub const LEGACY_OLLAMA_CHAT_PROVIDER_ID: &str = "ollama-chat";
 pub const OLLAMA_CHAT_PROVIDER_REMOVED_ERROR: &str = "`ollama-chat` is no longer supported.\nHow to fix: replace `ollama-chat` with `ollama` in `model_provider`, `oss_provider`, or `--local-provider`.\nMore info: https://github.com/openai/codex/discussions/7782";
@@ -53,12 +57,15 @@ pub enum WireApi {
     /// The Responses API exposed by OpenAI at `/v1/responses`.
     #[default]
     Responses,
+    /// The Anthropic Messages API exposed at `/v1/messages`.
+    Anthropic,
 }
 
 impl fmt::Display for WireApi {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let value = match self {
             Self::Responses => "responses",
+            Self::Anthropic => "anthropic",
         };
         f.write_str(value)
     }
@@ -72,8 +79,12 @@ impl<'de> Deserialize<'de> for WireApi {
         let value = String::deserialize(deserializer)?;
         match value.as_str() {
             "responses" => Ok(Self::Responses),
+            "anthropic" => Ok(Self::Anthropic),
             "chat" => Err(serde::de::Error::custom(CHAT_WIRE_API_REMOVED_ERROR)),
-            _ => Err(serde::de::Error::unknown_variant(&value, &["responses"])),
+            _ => Err(serde::de::Error::unknown_variant(
+                &value,
+                &["responses", "anthropic"],
+            )),
         }
     }
 }
@@ -382,12 +393,42 @@ impl ModelProviderInfo {
         }
     }
 
+    pub fn create_minimax_provider(base_url: Option<String>) -> ModelProviderInfo {
+        ModelProviderInfo {
+            name: MINIMAX_PROVIDER_NAME.into(),
+            base_url: Some(base_url.unwrap_or_else(|| MINIMAX_DEFAULT_BASE_URL.to_string())),
+            env_key: Some(MINIMAX_API_KEY_ENV.to_string()),
+            env_key_instructions: Some(
+                "To use MiniMax models, obtain an API key from the MiniMax platform and set the \
+                 MINIMAX_API_KEY environment variable."
+                    .to_string(),
+            ),
+            experimental_bearer_token: None,
+            auth: None,
+            aws: None,
+            wire_api: WireApi::Anthropic,
+            query_params: None,
+            http_headers: None,
+            env_http_headers: None,
+            request_max_retries: None,
+            stream_max_retries: None,
+            stream_idle_timeout_ms: None,
+            websocket_connect_timeout_ms: None,
+            requires_openai_auth: false,
+            supports_websockets: false,
+        }
+    }
+
     pub fn is_openai(&self) -> bool {
         self.name == OPENAI_PROVIDER_NAME
     }
 
     pub fn is_amazon_bedrock(&self) -> bool {
         self.name == AMAZON_BEDROCK_PROVIDER_NAME
+    }
+
+    pub fn is_minimax(&self) -> bool {
+        self.name == MINIMAX_PROVIDER_NAME
     }
 
     pub fn supports_remote_compaction(&self) -> bool {
@@ -412,6 +453,7 @@ pub fn built_in_model_providers(
     use ModelProviderInfo as P;
     let openai_provider = P::create_openai_provider(openai_base_url);
     let amazon_bedrock_provider = P::create_amazon_bedrock_provider(/*aws*/ None);
+    let minimax_provider = P::create_minimax_provider(/*base_url*/ None);
 
     // We do not want to be in the business of adjucating which third-party
     // providers are bundled with Codex CLI, so we only include the OpenAI and
@@ -420,6 +462,7 @@ pub fn built_in_model_providers(
     [
         (OPENAI_PROVIDER_ID, openai_provider),
         (AMAZON_BEDROCK_PROVIDER_ID, amazon_bedrock_provider),
+        (MINIMAX_PROVIDER_ID, minimax_provider),
         (
             OLLAMA_OSS_PROVIDER_ID,
             create_oss_provider(DEFAULT_OLLAMA_PORT, WireApi::Responses),
@@ -436,9 +479,11 @@ pub fn built_in_model_providers(
 
 /// Merge configured providers into the built-in provider catalog.
 ///
-/// Configured providers extend the built-in set. Built-in providers are not
-/// generally overridable, but the built-in Amazon Bedrock provider allows the
-/// user to set `aws.profile` and `aws.region`.
+/// Configured providers extend the built-in set. When a configured provider
+/// shares a key with a built-in one, its explicitly-set fields are merged onto
+/// the built-in (e.g. overriding the MiniMax `base_url` to target the
+/// mainland-China endpoint). The built-in Amazon Bedrock provider is special:
+/// it only allows the user to set `aws.profile` and `aws.region`.
 pub fn merge_configured_model_providers(
     mut model_providers: HashMap<String, ModelProviderInfo>,
     configured_model_providers: HashMap<String, ModelProviderInfo>,
@@ -464,8 +509,57 @@ pub fn merge_configured_model_providers(
                     built_in_aws.region = Some(region);
                 }
             }
+        } else if let Some(existing) = model_providers.get_mut(&key) {
+            if let Some(base_url) = provider.base_url {
+                existing.base_url = Some(base_url);
+            }
+            if let Some(env_key) = provider.env_key {
+                existing.env_key = Some(env_key);
+            }
+            if let Some(instructions) = provider.env_key_instructions {
+                existing.env_key_instructions = Some(instructions);
+            }
+            if let Some(bearer) = provider.experimental_bearer_token {
+                existing.experimental_bearer_token = Some(bearer);
+            }
+            if let Some(auth) = provider.auth {
+                existing.auth = Some(auth);
+            }
+            if let Some(query_params) = provider.query_params {
+                existing.query_params = Some(query_params);
+            }
+            if let Some(headers) = provider.http_headers {
+                existing.http_headers = Some(headers);
+            }
+            if let Some(env_headers) = provider.env_http_headers {
+                existing.env_http_headers = Some(env_headers);
+            }
+            if let Some(max_retries) = provider.request_max_retries {
+                existing.request_max_retries = Some(max_retries);
+            }
+            if let Some(stream_retries) = provider.stream_max_retries {
+                existing.stream_max_retries = Some(stream_retries);
+            }
+            if let Some(idle_timeout) = provider.stream_idle_timeout_ms {
+                existing.stream_idle_timeout_ms = Some(idle_timeout);
+            }
+            if let Some(ws_timeout) = provider.websocket_connect_timeout_ms {
+                existing.websocket_connect_timeout_ms = Some(ws_timeout);
+            }
+            if !provider.name.is_empty() {
+                existing.name = provider.name;
+            }
+            if provider.wire_api != WireApi::default() {
+                existing.wire_api = provider.wire_api;
+            }
+            if provider.requires_openai_auth {
+                existing.requires_openai_auth = true;
+            }
+            if provider.supports_websockets {
+                existing.supports_websockets = true;
+            }
         } else {
-            model_providers.entry(key).or_insert(provider);
+            model_providers.insert(key, provider);
         }
     }
 

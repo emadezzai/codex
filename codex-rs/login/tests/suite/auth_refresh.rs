@@ -50,6 +50,7 @@ async fn refresh_token_succeeds_updates_storage() -> Result<()> {
     let initial_last_refresh = Utc::now() - Duration::days(1);
     let initial_tokens = build_tokens(INITIAL_ACCESS_TOKEN, INITIAL_REFRESH_TOKEN);
     let initial_auth = AuthDotJson {
+        minimax_api_key: None,
         auth_mode: Some(AuthMode::Chatgpt),
         openai_api_key: None,
         tokens: Some(initial_tokens.clone()),
@@ -114,6 +115,7 @@ async fn refresh_token_refreshes_when_auth_is_unchanged() -> Result<()> {
     let initial_last_refresh = Utc::now() - Duration::days(1);
     let initial_tokens = build_tokens(INITIAL_ACCESS_TOKEN, INITIAL_REFRESH_TOKEN);
     let initial_auth = AuthDotJson {
+        minimax_api_key: None,
         auth_mode: Some(AuthMode::Chatgpt),
         openai_api_key: None,
         tokens: Some(initial_tokens.clone()),
@@ -169,6 +171,7 @@ async fn refresh_token_skips_refresh_when_auth_changed() -> Result<()> {
     let initial_last_refresh = Utc::now() - Duration::days(1);
     let initial_tokens = build_tokens(INITIAL_ACCESS_TOKEN, INITIAL_REFRESH_TOKEN);
     let initial_auth = AuthDotJson {
+        minimax_api_key: None,
         auth_mode: Some(AuthMode::Chatgpt),
         openai_api_key: None,
         tokens: Some(initial_tokens),
@@ -179,6 +182,7 @@ async fn refresh_token_skips_refresh_when_auth_changed() -> Result<()> {
 
     let disk_tokens = build_tokens("disk-access-token", "disk-refresh-token");
     let disk_auth = AuthDotJson {
+        minimax_api_key: None,
         auth_mode: Some(AuthMode::Chatgpt),
         openai_api_key: None,
         tokens: Some(disk_tokens.clone()),
@@ -234,6 +238,7 @@ async fn refresh_token_errors_on_account_mismatch() -> Result<()> {
     let initial_last_refresh = Utc::now() - Duration::days(1);
     let initial_tokens = build_tokens(INITIAL_ACCESS_TOKEN, INITIAL_REFRESH_TOKEN);
     let initial_auth = AuthDotJson {
+        minimax_api_key: None,
         auth_mode: Some(AuthMode::Chatgpt),
         openai_api_key: None,
         tokens: Some(initial_tokens.clone()),
@@ -245,6 +250,7 @@ async fn refresh_token_errors_on_account_mismatch() -> Result<()> {
     let mut disk_tokens = build_tokens("disk-access-token", "disk-refresh-token");
     disk_tokens.account_id = Some("other-account".to_string());
     let disk_auth = AuthDotJson {
+        minimax_api_key: None,
         auth_mode: Some(AuthMode::Chatgpt),
         openai_api_key: None,
         tokens: Some(disk_tokens),
@@ -304,6 +310,7 @@ async fn returns_fresh_tokens_as_is() -> Result<()> {
     let fresh_access_token = access_token_with_expiration(Utc::now() + Duration::hours(1));
     let initial_tokens = build_tokens(&fresh_access_token, INITIAL_REFRESH_TOKEN);
     let initial_auth = AuthDotJson {
+        minimax_api_key: None,
         auth_mode: Some(AuthMode::Chatgpt),
         openai_api_key: None,
         tokens: Some(initial_tokens.clone()),
@@ -352,6 +359,7 @@ async fn refreshes_token_when_access_token_is_expired() -> Result<()> {
     let expired_access_token = access_token_with_expiration(Utc::now() - Duration::hours(1));
     let initial_tokens = build_tokens(&expired_access_token, INITIAL_REFRESH_TOKEN);
     let initial_auth = AuthDotJson {
+        minimax_api_key: None,
         auth_mode: Some(AuthMode::Chatgpt),
         openai_api_key: None,
         tokens: Some(initial_tokens.clone()),
@@ -402,6 +410,7 @@ async fn auth_reloads_disk_auth_when_cached_auth_is_stale() -> Result<()> {
     let stale_refresh = Utc::now() - Duration::days(9);
     let initial_tokens = build_tokens(INITIAL_ACCESS_TOKEN, INITIAL_REFRESH_TOKEN);
     let initial_auth = AuthDotJson {
+        minimax_api_key: None,
         auth_mode: Some(AuthMode::Chatgpt),
         openai_api_key: None,
         tokens: Some(initial_tokens),
@@ -413,6 +422,7 @@ async fn auth_reloads_disk_auth_when_cached_auth_is_stale() -> Result<()> {
     let fresh_refresh = Utc::now() - Duration::days(1);
     let disk_tokens = build_tokens("disk-access-token", "disk-refresh-token");
     let disk_auth = AuthDotJson {
+        minimax_api_key: None,
         auth_mode: Some(AuthMode::Chatgpt),
         openai_api_key: None,
         tokens: Some(disk_tokens.clone()),
@@ -465,6 +475,7 @@ async fn auth_reloads_disk_auth_without_calling_expired_refresh_token() -> Resul
     let stale_refresh = Utc::now() - Duration::days(9);
     let initial_tokens = build_tokens(INITIAL_ACCESS_TOKEN, INITIAL_REFRESH_TOKEN);
     let initial_auth = AuthDotJson {
+        minimax_api_key: None,
         auth_mode: Some(AuthMode::Chatgpt),
         openai_api_key: None,
         tokens: Some(initial_tokens),
@@ -476,6 +487,7 @@ async fn auth_reloads_disk_auth_without_calling_expired_refresh_token() -> Resul
     let fresh_refresh = Utc::now() - Duration::days(1);
     let disk_tokens = build_tokens("disk-access-token", "disk-refresh-token");
     let disk_auth = AuthDotJson {
+        minimax_api_key: None,
         auth_mode: Some(AuthMode::Chatgpt),
         openai_api_key: None,
         tokens: Some(disk_tokens.clone()),
@@ -526,6 +538,7 @@ async fn refresh_token_returns_permanent_error_for_expired_refresh_token() -> Re
     let initial_last_refresh = Utc::now() - Duration::days(1);
     let initial_tokens = build_tokens(INITIAL_ACCESS_TOKEN, INITIAL_REFRESH_TOKEN);
     let initial_auth = AuthDotJson {
+        minimax_api_key: None,
         auth_mode: Some(AuthMode::Chatgpt),
         openai_api_key: None,
         tokens: Some(initial_tokens.clone()),
@@ -579,6 +592,7 @@ async fn refresh_token_does_not_retry_after_permanent_failure() -> Result<()> {
     let initial_last_refresh = Utc::now() - Duration::days(1);
     let initial_tokens = build_tokens(INITIAL_ACCESS_TOKEN, INITIAL_REFRESH_TOKEN);
     let initial_auth = AuthDotJson {
+        minimax_api_key: None,
         auth_mode: Some(AuthMode::Chatgpt),
         openai_api_key: None,
         tokens: Some(initial_tokens.clone()),
@@ -646,6 +660,7 @@ async fn refresh_token_reloads_changed_auth_after_permanent_failure() -> Result<
     let initial_last_refresh = Utc::now() - Duration::days(1);
     let initial_tokens = build_tokens(INITIAL_ACCESS_TOKEN, INITIAL_REFRESH_TOKEN);
     let initial_auth = AuthDotJson {
+        minimax_api_key: None,
         auth_mode: Some(AuthMode::Chatgpt),
         openai_api_key: None,
         tokens: Some(initial_tokens.clone()),
@@ -668,6 +683,7 @@ async fn refresh_token_reloads_changed_auth_after_permanent_failure() -> Result<
     let fresh_refresh = Utc::now() - Duration::hours(1);
     let disk_tokens = build_tokens("disk-access-token", "disk-refresh-token");
     let disk_auth = AuthDotJson {
+        minimax_api_key: None,
         auth_mode: Some(AuthMode::Chatgpt),
         openai_api_key: None,
         tokens: Some(disk_tokens.clone()),
@@ -727,6 +743,7 @@ async fn refresh_token_returns_transient_error_on_server_failure() -> Result<()>
     let initial_last_refresh = Utc::now() - Duration::days(1);
     let initial_tokens = build_tokens(INITIAL_ACCESS_TOKEN, INITIAL_REFRESH_TOKEN);
     let initial_auth = AuthDotJson {
+        minimax_api_key: None,
         auth_mode: Some(AuthMode::Chatgpt),
         openai_api_key: None,
         tokens: Some(initial_tokens.clone()),
@@ -780,6 +797,7 @@ async fn unauthorized_recovery_reloads_then_refreshes_tokens() -> Result<()> {
     let initial_last_refresh = Utc::now() - Duration::days(1);
     let initial_tokens = build_tokens(INITIAL_ACCESS_TOKEN, INITIAL_REFRESH_TOKEN);
     let initial_auth = AuthDotJson {
+        minimax_api_key: None,
         auth_mode: Some(AuthMode::Chatgpt),
         openai_api_key: None,
         tokens: Some(initial_tokens.clone()),
@@ -790,6 +808,7 @@ async fn unauthorized_recovery_reloads_then_refreshes_tokens() -> Result<()> {
 
     let disk_tokens = build_tokens("disk-access-token", "disk-refresh-token");
     let disk_auth = AuthDotJson {
+        minimax_api_key: None,
         auth_mode: Some(AuthMode::Chatgpt),
         openai_api_key: None,
         tokens: Some(disk_tokens.clone()),
@@ -874,6 +893,7 @@ async fn unauthorized_recovery_errors_on_account_mismatch() -> Result<()> {
     let initial_last_refresh = Utc::now() - Duration::days(1);
     let initial_tokens = build_tokens(INITIAL_ACCESS_TOKEN, INITIAL_REFRESH_TOKEN);
     let initial_auth = AuthDotJson {
+        minimax_api_key: None,
         auth_mode: Some(AuthMode::Chatgpt),
         openai_api_key: None,
         tokens: Some(initial_tokens.clone()),
@@ -885,6 +905,7 @@ async fn unauthorized_recovery_errors_on_account_mismatch() -> Result<()> {
     let mut disk_tokens = build_tokens("disk-access-token", "disk-refresh-token");
     disk_tokens.account_id = Some("other-account".to_string());
     let disk_auth = AuthDotJson {
+        minimax_api_key: None,
         auth_mode: Some(AuthMode::Chatgpt),
         openai_api_key: None,
         tokens: Some(disk_tokens),
@@ -943,6 +964,7 @@ async fn unauthorized_recovery_requires_chatgpt_auth() -> Result<()> {
     let server = MockServer::start().await;
     let ctx = RefreshTokenTestContext::new(&server).await?;
     let auth = AuthDotJson {
+        minimax_api_key: None,
         auth_mode: Some(AuthMode::ApiKey),
         openai_api_key: Some("sk-test".to_string()),
         tokens: None,

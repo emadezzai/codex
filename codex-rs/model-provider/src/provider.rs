@@ -130,7 +130,16 @@ pub trait ModelProvider: fmt::Debug + Send + Sync {
     /// Returns the auth provider used to attach request credentials.
     async fn api_auth(&self) -> codex_protocol::error::Result<SharedAuthProvider> {
         let auth = self.auth().await;
-        resolve_provider_auth(auth.as_ref(), self.info())
+        // MiniMax persists its API key in auth.json (via the onboarding
+        // "Sign in with MiniMax" flow). Use it as a fallback when the
+        // MINIMAX_API_KEY environment variable is not set.
+        let provider_key_fallback = if self.info().is_minimax() {
+            self.auth_manager()
+                .and_then(|auth_manager| auth_manager.minimax_api_key())
+        } else {
+            None
+        };
+        resolve_provider_auth(auth.as_ref(), self.info(), provider_key_fallback)
     }
 
     /// Creates the model manager implementation appropriate for this provider.
@@ -177,6 +186,17 @@ impl ConfiguredModelProvider {
 impl ModelProvider for ConfiguredModelProvider {
     fn info(&self) -> &ModelProviderInfo {
         &self.info
+    }
+
+    fn capabilities(&self) -> ProviderCapabilities {
+        if self.info.wire_api == codex_model_provider_info::WireApi::Anthropic {
+            ProviderCapabilities {
+                image_generation: false,
+                ..ProviderCapabilities::default()
+            }
+        } else {
+            ProviderCapabilities::default()
+        }
     }
 
     fn auth_manager(&self) -> Option<Arc<AuthManager>> {
@@ -348,7 +368,8 @@ mod tests {
             "max_context_window": 272_000,
             "experimental_supported_tools": [],
         }))
-        .expect("valid model")
+        .expect("valid model"),
+        tier: None,
     }
 
     #[test]
@@ -359,6 +380,21 @@ mod tests {
         );
 
         assert_eq!(provider.capabilities(), ProviderCapabilities::default());
+    }
+
+    #[test]
+    fn configured_provider_for_anthropic_wire_disables_image_generation() {
+        let mut info = ModelProviderInfo::create_openai_provider(/*base_url*/ None);
+        info.wire_api = WireApi::Anthropic;
+        let provider = create_model_provider(info, /*auth_manager*/ None);
+
+        assert_eq!(
+            provider.capabilities(),
+            ProviderCapabilities {
+                image_generation: false,
+                ..ProviderCapabilities::default()
+            }
+        );
     }
 
     #[test]

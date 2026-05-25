@@ -182,6 +182,7 @@ fn chatgpt_auth() -> AuthDotJson {
 
 fn chatgpt_auth_with_refresh_token(refresh_token: &str) -> AuthDotJson {
     AuthDotJson {
+        minimax_api_key: None,
         auth_mode: Some(AuthMode::Chatgpt),
         openai_api_key: None,
         tokens: Some(TokenData {

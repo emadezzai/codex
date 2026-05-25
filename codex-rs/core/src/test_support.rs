@@ -130,7 +130,8 @@ pub fn get_model_offline(model: Option<&str>) -> String {
 }
 
 pub fn construct_model_info_offline(model: &str, config: &Config) -> ModelInfo {
-    construct_model_info_offline_for_tests(model, &config.to_models_manager_config())
+    construct_model_info_offline_for_tests(model, &config.to_models_manager_config()),
+    tier: None,
 }
 
 pub fn all_model_presets() -> &'static Vec<ModelPreset> {

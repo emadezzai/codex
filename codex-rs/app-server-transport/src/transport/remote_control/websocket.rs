@@ -1456,6 +1456,7 @@ mod tests {
         let fake_jwt = format!("{header_b64}.{payload_b64}.sig");
 
         AuthDotJson {
+            minimax_api_key: None,
             auth_mode: Some(AuthMode::Chatgpt),
             openai_api_key: None,
             tokens: Some(TokenData {

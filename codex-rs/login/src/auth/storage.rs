@@ -29,13 +29,23 @@ use codex_protocol::account::PlanType as AccountPlanType;
 use once_cell::sync::Lazy;
 
 /// Expected structure for $CODEX_HOME/auth.json.
-#[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]
+#[derive(Deserialize, Serialize, Clone, Debug, Default, PartialEq)]
 pub struct AuthDotJson {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub auth_mode: Option<AuthMode>,
 
     #[serde(rename = "OPENAI_API_KEY")]
     pub openai_api_key: Option<String>,
+
+    /// API key for the MiniMax provider, persisted via the onboarding
+    /// "Sign in with MiniMax" flow. Read by the MiniMax provider when the
+    /// `MINIMAX_API_KEY` environment variable is not set.
+    #[serde(
+        rename = "MINIMAX_API_KEY",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub minimax_api_key: Option<String>,
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tokens: Option<TokenData>,

@@ -9,14 +9,16 @@ no JSON Schema exposed to users.
 ## Endpoint
 
 ```
-POST {base_url}/messages
+POST {base_url}/v1/messages
 Headers:
-  x-api-key: {MINIMAX_API_KEY}            # (or Authorization: Bearer, per MiniMax)
-  anthropic-version: <version>            # if required by MiniMax
+  Authorization: Bearer {MINIMAX_API_KEY} # Confirmed: MiniMax uses Authorization: Bearer instead of x-api-key
   content-type: application/json
 Body: Anthropic Messages request (below)
 Stream: text/event-stream (SSE)
 ```
+
+*Resolved MiniMax endpoint:* The default base URL is `https://api.minimax.io/anthropic`. The adapter posts to the path suffix `v1/messages`, so `Provider::url_for_path("v1/messages")` yields the full URL `https://api.minimax.io/anthropic/v1/messages` (matching how the Anthropic SDK appends `/v1/messages` to its base URL). MiniMax authenticates with `Authorization: Bearer {MINIMAX_API_KEY}` (not `x-api-key`) and requires no `anthropic-version` header. The Anthropic Messages API also requires a `max_tokens` field on every request; the adapter sends a generous default.
+
 
 ## Request translation (outbound)
 

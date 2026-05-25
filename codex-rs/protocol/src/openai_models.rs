@@ -85,6 +85,30 @@ pub enum InputModality {
     Image,
 }
 
+/// Tiers of capability or latency for a model (e.g. normal or high-speed).
+#[derive(
+    Debug,
+    Serialize,
+    Deserialize,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Display,
+    JsonSchema,
+    TS,
+    EnumIter,
+    Hash,
+)]
+#[serde(rename_all = "lowercase")]
+#[strum(serialize_all = "lowercase")]
+pub enum ModelTier {
+    Normal,
+    #[serde(rename = "high-speed")]
+    #[strum(serialize = "high-speed")]
+    HighSpeed,
+}
+
 /// Backward-compatible default when `input_modalities` is omitted on the wire.
 ///
 /// Legacy payloads predate modality metadata, so we conservatively assume both text and images are
@@ -164,15 +188,31 @@ pub struct ModelPreset {
     /// Input modalities accepted when composing user turns for this preset.
     #[serde(default = "default_input_modalities")]
     pub input_modalities: Vec<InputModality>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tier: Option<ModelTier>,
+    #[serde(default)]
+    pub visibility: ModelVisibility,
 }
 
 /// Visibility of a model in the picker or APIs.
 #[derive(
-    Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, TS, JsonSchema, EnumIter, Display,
+    Debug,
+    Serialize,
+    Deserialize,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    TS,
+    JsonSchema,
+    EnumIter,
+    Display,
+    Default,
 )]
 #[serde(rename_all = "lowercase")]
 #[strum(serialize_all = "lowercase")]
 pub enum ModelVisibility {
+    #[default]
     List,
     Hide,
     None,
@@ -318,11 +358,23 @@ pub struct ModelInfo {
     pub used_fallback_model_metadata: bool,
     #[serde(default)]
     pub supports_search_tool: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tier: Option<ModelTier>,
 }
 
 impl ModelInfo {
     pub fn resolved_context_window(&self) -> Option<i64> {
         self.context_window.or(self.max_context_window)
+    }
+
+    pub fn resolved_tier(&self) -> ModelTier {
+        self.tier.unwrap_or_else(|| {
+            if self.slug.contains("-highspeed") {
+                ModelTier::HighSpeed
+            } else {
+                ModelTier::Normal
+            }
+        })
     }
 
     pub fn auto_compact_token_limit(&self) -> Option<i64> {
@@ -449,6 +501,7 @@ pub struct ModelsResponse {
 impl From<ModelInfo> for ModelPreset {
     fn from(info: ModelInfo) -> Self {
         let supports_personality = info.supports_personality();
+        let tier = Some(info.resolved_tier());
         ModelPreset {
             id: info.slug.clone(),
             model: info.slug.clone(),
@@ -474,10 +527,12 @@ impl From<ModelInfo> for ModelPreset {
                 upgrade_copy: None,
                 migration_markdown: Some(upgrade.migration_markdown.clone()),
             }),
-            show_in_picker: info.visibility == ModelVisibility::List,
             availability_nux: info.availability_nux,
             supported_in_api: info.supported_in_api,
             input_modalities: info.input_modalities,
+            tier,
+            visibility: info.visibility,
+            show_in_picker: info.visibility == ModelVisibility::List,
         }
     }
 }
@@ -579,6 +634,7 @@ mod tests {
 
     fn test_model(spec: Option<ModelMessages>) -> ModelInfo {
         ModelInfo {
+            tier: None,
             slug: "test-model".to_string(),
             display_name: "Test Model".to_string(),
             description: None,

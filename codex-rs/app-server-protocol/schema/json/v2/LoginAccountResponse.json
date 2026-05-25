@@ -44,6 +44,22 @@
     },
     {
       "properties": {
+        "type": {
+          "enum": [
+            "minimaxApiKey"
+          ],
+          "title": "MinimaxApiKeyv2::LoginAccountResponseType",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "MinimaxApiKeyv2::LoginAccountResponse",
+      "type": "object"
+    },
+    {
+      "properties": {
         "loginId": {
           "type": "string"
         },

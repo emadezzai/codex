@@ -119,6 +119,7 @@ pub(crate) enum SignInState {
     ChatGptSuccess,
     ApiKeyEntry(ApiKeyInputState),
     ApiKeyConfigured,
+    MiniMaxApiKeyConfigured,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -126,6 +127,15 @@ pub(crate) enum SignInOption {
     ChatGpt,
     DeviceCode,
     ApiKey,
+    MiniMax,
+}
+
+/// Identifies which provider an API-key entry screen is collecting a key for.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum ApiKeyProvider {
+    #[default]
+    OpenAi,
+    MiniMax,
 }
 
 const API_KEY_DISABLED_MESSAGE: &str = "API key login is disabled.";
@@ -151,6 +161,7 @@ pub(super) async fn cancel_login_attempt(
 pub(crate) struct ApiKeyInputState {
     value: String,
     prepopulated_from_env: bool,
+    provider: ApiKeyProvider,
 }
 
 #[derive(Clone)]
@@ -231,6 +242,10 @@ impl KeyboardHandler for AuthModeWidget {
         }
         if keys::SELECT_THIRD.is_pressed(key_event) {
             self.select_option_by_index(/*index*/ 2);
+            return;
+        }
+        if keys::SELECT_FOURTH.is_pressed(key_event) {
+            self.select_option_by_index(/*index*/ 3);
             return;
         }
         if keys::CONFIRM.is_pressed(key_event) {
@@ -355,6 +370,7 @@ impl AuthModeWidget {
         if self.is_api_login_allowed() {
             options.push(SignInOption::ApiKey);
         }
+        options.push(SignInOption::MiniMax);
         options
     }
 
@@ -367,6 +383,7 @@ impl AuthModeWidget {
         if self.is_api_login_allowed() {
             options.push(SignInOption::ApiKey);
         }
+        options.push(SignInOption::MiniMax);
         options
     }
 
@@ -410,6 +427,9 @@ impl AuthModeWidget {
                 } else {
                     self.disallow_api_login();
                 }
+            }
+            SignInOption::MiniMax => {
+                self.start_minimax_api_key_entry();
             }
         }
     }
@@ -494,6 +514,14 @@ impl AuthModeWidget {
                         option,
                         "Provide your own API key",
                         "Pay for what you use",
+                    ));
+                }
+                SignInOption::MiniMax => {
+                    lines.extend(create_mode_item(
+                        idx,
+                        option,
+                        "Sign in with MiniMax",
+                        "Use a MiniMax API key (M-series models)",
                     ));
                 }
             }
@@ -637,6 +665,18 @@ impl AuthModeWidget {
             .render(area, buf);
     }
 
+    fn render_minimax_api_key_configured(&self, area: Rect, buf: &mut Buffer) {
+        let lines = vec![
+            "✓ MiniMax API key configured".fg(Color::Green).into(),
+            "".into(),
+            "  Select a MiniMax model to start a session with the MiniMax provider.".into(),
+        ];
+
+        Paragraph::new(lines)
+            .wrap(Wrap { trim: false })
+            .render(area, buf);
+    }
+
     fn render_api_key_entry(&self, area: Rect, buf: &mut Buffer, state: &ApiKeyInputState) {
         let [intro_area, input_area, footer_area] = Layout::vertical([
             Constraint::Min(4),
@@ -645,17 +685,22 @@ impl AuthModeWidget {
         ])
         .areas(area);
 
+        let title = match state.provider {
+            ApiKeyProvider::OpenAi => "Use your own OpenAI API key for usage-based billing",
+            ApiKeyProvider::MiniMax => "Sign in with your MiniMax API key",
+        };
         let mut intro_lines: Vec<Line> = vec![
-            Line::from(vec![
-                "> ".into(),
-                "Use your own OpenAI API key for usage-based billing".bold(),
-            ]),
+            Line::from(vec!["> ".into(), title.bold()]),
             "".into(),
             "  Paste or type your API key below. It will be stored locally in auth.json.".into(),
             "".into(),
         ];
         if state.prepopulated_from_env {
-            intro_lines.push("  Detected OPENAI_API_KEY environment variable.".into());
+            let env_var = match state.provider {
+                ApiKeyProvider::OpenAi => "OPENAI_API_KEY",
+                ApiKeyProvider::MiniMax => "MINIMAX_API_KEY",
+            };
+            intro_lines.push(format!("  Detected {env_var} environment variable.").into());
             intro_lines.push(
                 "  Paste a different key if you prefer to use another account."
                     .dim()
@@ -705,7 +750,7 @@ impl AuthModeWidget {
     }
 
     fn handle_api_key_entry_key_event(&mut self, key_event: &KeyEvent) -> bool {
-        let mut should_save: Option<String> = None;
+        let mut should_save: Option<(String, ApiKeyProvider)> = None;
         let mut should_request_frame = false;
 
         {
@@ -721,7 +766,7 @@ impl AuthModeWidget {
                         self.set_error(Some("API key cannot be empty".to_string()));
                         should_request_frame = true;
                     } else {
-                        should_save = Some(trimmed);
+                        should_save = Some((trimmed, state.provider));
                     }
                 } else {
                     match key_event.code {
@@ -758,8 +803,11 @@ impl AuthModeWidget {
             }
         }
 
-        if let Some(api_key) = should_save {
-            self.save_api_key(api_key);
+        if let Some((api_key, provider)) = should_save {
+            match provider {
+                ApiKeyProvider::OpenAi => self.save_api_key(api_key),
+                ApiKeyProvider::MiniMax => self.save_minimax_api_key(api_key),
+            }
         } else if should_request_frame {
             self.request_frame.schedule_frame();
         }
@@ -813,10 +861,88 @@ impl AuthModeWidget {
                 *guard = SignInState::ApiKeyEntry(ApiKeyInputState {
                     value: prefill_from_env.clone().unwrap_or_default(),
                     prepopulated_from_env: prefill_from_env.is_some(),
+                    provider: ApiKeyProvider::OpenAi,
                 });
             }
         }
         drop(guard);
+        self.request_frame.schedule_frame();
+    }
+
+    /// Opens the API-key entry screen for the MiniMax provider. Unlike the
+    /// OpenAI flow this is never disabled by `forced_login_method`, since it
+    /// only persists a provider-scoped credential.
+    fn start_minimax_api_key_entry(&mut self) {
+        self.set_error(/*message*/ None);
+        let prefill_from_env = std::env::var("MINIMAX_API_KEY")
+            .ok()
+            .filter(|key| !key.is_empty());
+        let mut guard = self.sign_in_state.write().unwrap();
+        match &mut *guard {
+            SignInState::ApiKeyEntry(state) if state.provider == ApiKeyProvider::MiniMax => {
+                if state.value.is_empty() {
+                    if let Some(prefill) = prefill_from_env {
+                        state.value = prefill;
+                        state.prepopulated_from_env = true;
+                    } else {
+                        state.prepopulated_from_env = false;
+                    }
+                }
+            }
+            _ => {
+                *guard = SignInState::ApiKeyEntry(ApiKeyInputState {
+                    value: prefill_from_env.clone().unwrap_or_default(),
+                    prepopulated_from_env: prefill_from_env.is_some(),
+                    provider: ApiKeyProvider::MiniMax,
+                });
+            }
+        }
+        drop(guard);
+        self.request_frame.schedule_frame();
+    }
+
+    fn save_minimax_api_key(&mut self, api_key: String) {
+        self.set_error(/*message*/ None);
+        let request_handle = self.app_server_request_handle.clone();
+        let sign_in_state = self.sign_in_state.clone();
+        let error = self.error.clone();
+        let request_frame = self.request_frame.clone();
+        tokio::spawn(async move {
+            match request_handle
+                .request_typed::<LoginAccountResponse>(ClientRequest::LoginAccount {
+                    request_id: onboarding_request_id(),
+                    params: LoginAccountParams::MinimaxApiKey {
+                        api_key: api_key.clone(),
+                    },
+                })
+                .await
+            {
+                Ok(LoginAccountResponse::MinimaxApiKey {}) => {
+                    *error.write().unwrap() = None;
+                    *sign_in_state.write().unwrap() = SignInState::MiniMaxApiKeyConfigured;
+                }
+                Ok(other) => {
+                    *error.write().unwrap() = Some(format!(
+                        "Unexpected account/login/start response: {other:?}"
+                    ));
+                    *sign_in_state.write().unwrap() = SignInState::ApiKeyEntry(ApiKeyInputState {
+                        value: api_key,
+                        prepopulated_from_env: false,
+                        provider: ApiKeyProvider::MiniMax,
+                    });
+                }
+                Err(err) => {
+                    *error.write().unwrap() =
+                        Some(format!("Failed to save MiniMax API key: {err}"));
+                    *sign_in_state.write().unwrap() = SignInState::ApiKeyEntry(ApiKeyInputState {
+                        value: api_key,
+                        prepopulated_from_env: false,
+                        provider: ApiKeyProvider::MiniMax,
+                    });
+                }
+            }
+            request_frame.schedule_frame();
+        });
         self.request_frame.schedule_frame();
     }
 
@@ -851,6 +977,7 @@ impl AuthModeWidget {
                     *sign_in_state.write().unwrap() = SignInState::ApiKeyEntry(ApiKeyInputState {
                         value: api_key,
                         prepopulated_from_env: false,
+                        provider: ApiKeyProvider::OpenAi,
                     });
                 }
                 Err(err) => {
@@ -858,6 +985,7 @@ impl AuthModeWidget {
                     *sign_in_state.write().unwrap() = SignInState::ApiKeyEntry(ApiKeyInputState {
                         value: api_key,
                         prepopulated_from_env: false,
+                        provider: ApiKeyProvider::OpenAi,
                     });
                 }
             }
@@ -983,7 +1111,9 @@ impl StepStateProvider for AuthModeWidget {
             | SignInState::ChatGptContinueInBrowser(_)
             | SignInState::ChatGptDeviceCode(_)
             | SignInState::ChatGptSuccessMessage => StepState::InProgress,
-            SignInState::ChatGptSuccess | SignInState::ApiKeyConfigured => StepState::Complete,
+            SignInState::ChatGptSuccess
+            | SignInState::ApiKeyConfigured
+            | SignInState::MiniMaxApiKeyConfigured => StepState::Complete,
         }
     }
 }
@@ -1012,6 +1142,9 @@ impl WidgetRef for AuthModeWidget {
             }
             SignInState::ApiKeyConfigured => {
                 self.render_api_key_configured(area, buf);
+            }
+            SignInState::MiniMaxApiKeyConfigured => {
+                self.render_minimax_api_key_configured(area, buf);
             }
         }
     }

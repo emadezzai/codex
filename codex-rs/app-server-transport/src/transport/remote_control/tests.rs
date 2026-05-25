@@ -95,6 +95,7 @@ fn remote_control_auth_dot_json(account_id: Option<&str>) -> AuthDotJson {
     let fake_jwt = format!("{header_b64}.{payload_b64}.sig");
 
     AuthDotJson {
+        minimax_api_key: None,
         auth_mode: Some(AuthMode::Chatgpt),
         openai_api_key: None,
         tokens: Some(TokenData {

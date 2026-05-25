@@ -222,6 +222,9 @@ impl AccountRequestProcessor {
                 self.login_chatgpt_v2(request_id, codex_streamlined_login)
                     .await;
             }
+            LoginAccountParams::MinimaxApiKey { api_key } => {
+                self.login_minimax_api_key_v2(request_id, api_key).await;
+            }
             LoginAccountParams::ChatgptDeviceCode => {
                 self.login_chatgpt_device_code_v2(request_id).await;
             }
@@ -297,6 +300,35 @@ impl AccountRequestProcessor {
         if logged_in {
             self.send_login_success_notifications(/*login_id*/ None)
                 .await;
+        }
+    }
+
+    async fn login_minimax_api_key_v2(
+        &self,
+        request_id: ConnectionRequestId,
+        api_key: String,
+    ) {
+        let result = self
+            .save_minimax_api_key(&api_key)
+            .map(|()| LoginAccountResponse::MinimaxApiKey {});
+        self.outgoing.send_result(request_id, result).await;
+    }
+
+    fn save_minimax_api_key(&self, api_key: &str) -> std::result::Result<(), JSONRPCErrorError> {
+        let trimmed = api_key.trim();
+        if trimmed.is_empty() {
+            return Err(invalid_request("MiniMax API key cannot be empty."));
+        }
+
+        match login_with_minimax_api_key(
+            &self.config.codex_home,
+            trimmed,
+            self.config.cli_auth_credentials_store_mode,
+        ) {
+            Ok(()) => Ok(()),
+            Err(err) => Err(internal_error(format!(
+                "failed to save MiniMax api key: {err}"
+            ))),
         }
     }
 

@@ -105,7 +105,8 @@ fn test_model_info() -> ModelInfo {
         "auto_compact_token_limit": null,
         "experimental_supported_tools": []
     }))
-    .expect("deserialize test model info")
+    .expect("deserialize test model info"),
+    tier: None,
 }
 
 fn test_session_telemetry() -> SessionTelemetry {

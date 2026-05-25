@@ -131,6 +131,7 @@ pub(crate) type OnCancelCallback = Option<Box<dyn Fn(&AppEventSender) + Send + S
 pub(crate) struct SelectionItem {
     pub name: String,
     pub name_prefix_spans: Vec<Span<'static>>,
+    pub name_suffix_spans: Vec<Span<'static>>,
     pub toggle: Option<SelectionToggle>,
     pub toggle_placeholder: Option<&'static str>,
     pub display_shortcut: Option<KeyBinding>,
@@ -539,6 +540,7 @@ impl ListSelectionView {
                     GenericDisplayRow {
                         name: name_with_marker,
                         name_prefix_spans,
+                        name_suffix_spans: item.name_suffix_spans.clone(),
                         display_shortcut: item.display_shortcut,
                         match_indices: None,
                         description,

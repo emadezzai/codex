@@ -1253,6 +1253,27 @@
           "type": "object"
         },
         {
+          "description": "Persist a MiniMax API key for the MiniMax model provider. Unlike `ApiKey`, this does not change the active OpenAI/ChatGPT auth; it stores a provider-scoped credential used when the `MINIMAX_API_KEY` environment variable is unset.",
+          "properties": {
+            "apiKey": {
+              "type": "string"
+            },
+            "type": {
+              "enum": [
+                "minimaxApiKey"
+              ],
+              "title": "MinimaxApiKeyLoginAccountParamsType",
+              "type": "string"
+            }
+          },
+          "required": [
+            "apiKey",
+            "type"
+          ],
+          "title": "MinimaxApiKeyLoginAccountParams",
+          "type": "object"
+        },
+        {
           "properties": {
             "type": {
               "enum": [

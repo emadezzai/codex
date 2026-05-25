@@ -458,6 +458,7 @@ async fn remote_models_remote_model_uses_unified_exec() -> Result<()> {
         .await;
 
     let remote_model = ModelInfo {
+        tier: None,
         slug: REMOTE_MODEL_SLUG.to_string(),
         display_name: "Remote Test".to_string(),
         description: Some("A remote model that requires the test shell".to_string()),
@@ -706,6 +707,7 @@ async fn remote_models_apply_remote_base_instructions() -> Result<()> {
 
     let remote_base = "Use the remote base instructions only.";
     let remote_model = ModelInfo {
+        tier: None,
         slug: model.to_string(),
         display_name: "Parallel Remote".to_string(),
         description: Some("A remote model with custom instructions".to_string()),
@@ -1178,7 +1180,8 @@ fn test_remote_model(slug: &str, visibility: ModelVisibility, priority: i32) -> 
         visibility,
         priority,
         TruncationPolicyConfig::bytes(/*limit*/ 10_000),
-    )
+    ),
+    tier: None,
 }
 
 fn test_remote_model_with_policy(
@@ -1188,6 +1191,7 @@ fn test_remote_model_with_policy(
     truncation_policy: TruncationPolicyConfig,
 ) -> ModelInfo {
     ModelInfo {
+        tier: None,
         slug: slug.to_string(),
         display_name: format!("{slug} display"),
         description: Some(format!("{slug} description")),
@@ -1224,5 +1228,6 @@ fn test_remote_model_with_policy(
         auto_compact_token_limit: None,
         effective_context_window_percent: 95,
         experimental_supported_tools: Vec::new(),
-    }
+    },
+    tier: None,
 }

@@ -14,6 +14,7 @@ async fn file_storage_load_returns_auth_dot_json() -> anyhow::Result<()> {
     let codex_home = tempdir()?;
     let storage = FileAuthStorage::new(codex_home.path().to_path_buf());
     let auth_dot_json = AuthDotJson {
+        minimax_api_key: None,
         auth_mode: Some(AuthMode::ApiKey),
         openai_api_key: Some("test-key".to_string()),
         tokens: None,
@@ -35,6 +36,7 @@ async fn file_storage_save_persists_auth_dot_json() -> anyhow::Result<()> {
     let codex_home = tempdir()?;
     let storage = FileAuthStorage::new(codex_home.path().to_path_buf());
     let auth_dot_json = AuthDotJson {
+        minimax_api_key: None,
         auth_mode: Some(AuthMode::ApiKey),
         openai_api_key: Some("test-key".to_string()),
         tokens: None,
@@ -68,6 +70,7 @@ async fn file_storage_round_trips_agent_identity_auth() -> anyhow::Result<()> {
         "chatgpt_account_is_fedramp": false,
     }));
     let auth_dot_json = AuthDotJson {
+        minimax_api_key: None,
         auth_mode: Some(AuthMode::AgentIdentity),
         openai_api_key: None,
         tokens: None,
@@ -117,6 +120,7 @@ async fn file_storage_loads_agent_identity_as_jwt() -> anyhow::Result<()> {
 fn file_storage_delete_removes_auth_file() -> anyhow::Result<()> {
     let dir = tempdir()?;
     let auth_dot_json = AuthDotJson {
+        minimax_api_key: None,
         auth_mode: Some(AuthMode::ApiKey),
         openai_api_key: Some("sk-test-key".to_string()),
         tokens: None,
@@ -141,6 +145,7 @@ fn ephemeral_storage_save_load_delete_is_in_memory_only() -> anyhow::Result<()> 
         AuthCredentialsStoreMode::Ephemeral,
     );
     let auth_dot_json = AuthDotJson {
+        minimax_api_key: None,
         auth_mode: Some(AuthMode::ApiKey),
         openai_api_key: Some("sk-ephemeral".to_string()),
         tokens: None,
@@ -235,6 +240,7 @@ fn id_token_with_prefix(prefix: &str) -> IdTokenInfo {
 
 fn auth_with_prefix(prefix: &str) -> AuthDotJson {
     AuthDotJson {
+        minimax_api_key: None,
         auth_mode: Some(AuthMode::ApiKey),
         openai_api_key: Some(format!("{prefix}-api-key")),
         tokens: Some(TokenData {
@@ -265,6 +271,7 @@ fn keyring_auth_storage_load_returns_deserialized_auth() -> anyhow::Result<()> {
         Arc::new(mock_keyring.clone()),
     );
     let expected = AuthDotJson {
+        minimax_api_key: None,
         auth_mode: Some(AuthMode::ApiKey),
         openai_api_key: Some("sk-test".to_string()),
         tokens: None,
@@ -303,6 +310,7 @@ fn keyring_auth_storage_save_persists_and_removes_fallback_file() -> anyhow::Res
     let auth_file = get_auth_file(codex_home.path());
     std::fs::write(&auth_file, "stale")?;
     let auth = AuthDotJson {
+        minimax_api_key: None,
         auth_mode: Some(AuthMode::Chatgpt),
         openai_api_key: None,
         tokens: Some(TokenData {

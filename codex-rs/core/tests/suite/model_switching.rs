@@ -97,6 +97,7 @@ fn test_model_info(
     input_modalities: Vec<InputModality>,
 ) -> ModelInfo {
     ModelInfo {
+        tier: None,
         slug: slug.to_string(),
         display_name: display_name.to_string(),
         description: Some(description.to_string()),
@@ -133,7 +134,8 @@ fn test_model_info(
         auto_compact_token_limit: None,
         effective_context_window_percent: 95,
         experimental_supported_tools: Vec::new(),
-    }
+    },
+    tier: None,
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -927,6 +929,7 @@ async fn model_switch_to_smaller_model_updates_token_context_window() -> Result<
         (smaller_context_window * effective_context_window_percent) / 100;
 
     let base_model = ModelInfo {
+        tier: None,
         slug: large_model_slug.to_string(),
         display_name: "Larger Model".to_string(),
         description: Some("larger context window model".to_string()),

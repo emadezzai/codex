@@ -228,6 +228,7 @@ async fn pro_account_with_no_api_key_uses_chatgpt_auth() {
 
     assert_eq!(
         AuthDotJson {
+            minimax_api_key: None,
             auth_mode: None,
             openai_api_key: None,
             tokens: Some(TokenData {
@@ -281,6 +282,7 @@ async fn loads_api_key_from_auth_json() {
 fn logout_removes_auth_file() -> Result<(), std::io::Error> {
     let dir = tempdir()?;
     let auth_dot_json = AuthDotJson {
+        minimax_api_key: None,
         auth_mode: Some(ApiAuthMode::ApiKey),
         openai_api_key: Some("sk-test-key".to_string()),
         tokens: None,
@@ -933,6 +935,7 @@ async fn enforce_login_restrictions_logs_out_for_agent_identity_workspace_mismat
     save_auth(
         codex_home.path(),
         &AuthDotJson {
+            minimax_api_key: None,
             auth_mode: Some(ApiAuthMode::AgentIdentity),
             openai_api_key: None,
             tokens: None,

@@ -29,6 +29,7 @@ use super::scroll_state::ScrollState;
 pub(crate) struct GenericDisplayRow {
     pub name: String,
     pub name_prefix_spans: Vec<Span<'static>>,
+    pub name_suffix_spans: Vec<Span<'static>>,
     pub display_shortcut: Option<KeyBinding>,
     pub match_indices: Option<Vec<usize>>, // indices to bold (char positions)
     pub description: Option<String>,       // optional grey text after the name
@@ -170,6 +171,7 @@ fn compute_desc_col(
                     .map(|(_, row)| {
                         let mut spans = row.name_prefix_spans.clone();
                         spans.push(row.name.clone().into());
+                        spans.extend(row.name_suffix_spans.clone());
                         if row.disabled_reason.is_some() {
                             spans.push(" (disabled)".dim());
                         }
@@ -182,6 +184,7 @@ fn compute_desc_col(
                     .map(|row| {
                         let mut spans = row.name_prefix_spans.clone();
                         spans.push(row.name.clone().into());
+                        spans.extend(row.name_suffix_spans.clone());
                         if row.disabled_reason.is_some() {
                             spans.push(" (disabled)".dim());
                         }
@@ -487,6 +490,8 @@ fn build_full_line(row: &GenericDisplayRow, desc_col: usize) -> Line<'static> {
     if row.disabled_reason.is_some() {
         name_spans.push(" (disabled)".dim());
     }
+
+    name_spans.extend(row.name_suffix_spans.clone());
 
     let this_name_width = name_prefix_width + Line::from(name_spans.clone()).width();
     let mut full_spans: Vec<Span> = row.name_prefix_spans.clone();

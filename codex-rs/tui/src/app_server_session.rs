@@ -1200,6 +1200,12 @@ fn model_preset_from_api_model(model: ApiModel) -> ModelPreset {
         is_default: model.is_default,
         upgrade,
         show_in_picker: !model.hidden,
+        visibility: if model.hidden {
+            codex_protocol::openai_models::ModelVisibility::Hide
+        } else {
+            codex_protocol::openai_models::ModelVisibility::List
+        },
+        tier: None,
         availability_nux: model.availability_nux.map(|nux| ModelAvailabilityNux {
             message: nux.message,
         }),

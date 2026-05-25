@@ -58,6 +58,17 @@ pub enum LoginAccountParams {
         #[serde(default, skip_serializing_if = "std::ops::Not::not")]
         codex_streamlined_login: bool,
     },
+    /// Persist a MiniMax API key for the MiniMax model provider. Unlike
+    /// `ApiKey`, this does not change the active OpenAI/ChatGPT auth; it stores
+    /// a provider-scoped credential used when the `MINIMAX_API_KEY` environment
+    /// variable is unset.
+    #[serde(rename = "minimaxApiKey", rename_all = "camelCase")]
+    #[ts(rename = "minimaxApiKey", rename_all = "camelCase")]
+    MinimaxApiKey {
+        #[serde(rename = "apiKey")]
+        #[ts(rename = "apiKey")]
+        api_key: String,
+    },
     #[serde(rename = "chatgptDeviceCode")]
     #[ts(rename = "chatgptDeviceCode")]
     ChatgptDeviceCode,
@@ -98,6 +109,9 @@ pub enum LoginAccountResponse {
         /// URL the client should open in a browser to initiate the OAuth flow.
         auth_url: String,
     },
+    #[serde(rename = "minimaxApiKey", rename_all = "camelCase")]
+    #[ts(rename = "minimaxApiKey", rename_all = "camelCase")]
+    MinimaxApiKey {},
     #[serde(rename = "chatgptDeviceCode", rename_all = "camelCase")]
     #[ts(rename = "chatgptDeviceCode", rename_all = "camelCase")]
     ChatgptDeviceCode {

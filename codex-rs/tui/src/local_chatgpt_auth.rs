@@ -98,6 +98,7 @@ mod tests {
         let id_token = fake_jwt("user@example.com", "workspace-1", plan_type);
         let access_token = fake_jwt("user@example.com", "workspace-1", plan_type);
         let auth = AuthDotJson {
+            minimax_api_key: None,
             auth_mode: Some(AuthMode::Chatgpt),
             openai_api_key: None,
             tokens: Some(TokenData {
@@ -151,6 +152,7 @@ mod tests {
         save_auth(
             codex_home.path(),
             &AuthDotJson {
+                minimax_api_key: None,
                 auth_mode: Some(AuthMode::ApiKey),
                 openai_api_key: Some("sk-test".to_string()),
                 tokens: None,

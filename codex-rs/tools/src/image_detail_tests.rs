@@ -38,7 +38,8 @@ fn model_info() -> ModelInfo {
         "input_modalities": ["text", "image"],
         "supports_search_tool": false
     }))
-    .expect("deserialize test model")
+    .expect("deserialize test model"),
+    tier: None,
 }
 
 #[test]

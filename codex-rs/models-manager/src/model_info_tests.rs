@@ -72,3 +72,17 @@ fn model_context_window_uses_model_value_without_override() {
 
     assert_eq!(updated, model);
 }
+
+#[test]
+fn test_tier_for_model_id() {
+    assert_eq!(tier_for_model_id("MiniMax-M2.7"), ModelTier::Normal);
+    assert_eq!(
+        tier_for_model_id("MiniMax-M2.7-highspeed"),
+        ModelTier::HighSpeed
+    );
+    assert_eq!(
+        tier_for_model_id("some-other-highspeed-model"),
+        ModelTier::HighSpeed
+    );
+    assert_eq!(tier_for_model_id("some-other-model"), ModelTier::Normal);
+}

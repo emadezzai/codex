@@ -1,6 +1,7 @@
 use super::*;
 use codex_protocol::openai_models::ModelPreset;
 use codex_protocol::openai_models::ModelServiceTier;
+use codex_protocol::openai_models::ModelVisibility;
 use codex_protocol::openai_models::ReasoningEffort;
 use codex_protocol::openai_models::ReasoningEffortPreset;
 use codex_tools::JsonSchemaPrimitiveType;
@@ -10,6 +11,7 @@ use serde_json::json;
 
 fn model_preset(id: &str, show_in_picker: bool) -> ModelPreset {
     ModelPreset {
+        tier: None,
         id: id.to_string(),
         model: format!("{id}-model"),
         display_name: format!("{id} display"),
@@ -33,6 +35,11 @@ fn model_preset(id: &str, show_in_picker: bool) -> ModelPreset {
         availability_nux: None,
         supported_in_api: true,
         input_modalities: Vec::new(),
+        visibility: if show_in_picker {
+            ModelVisibility::List
+        } else {
+            ModelVisibility::Hide
+        },
     }
 }
 

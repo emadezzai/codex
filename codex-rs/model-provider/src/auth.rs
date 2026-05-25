@@ -78,8 +78,9 @@ pub(crate) fn auth_manager_for_provider(
 pub(crate) fn resolve_provider_auth(
     auth: Option<&CodexAuth>,
     provider: &ModelProviderInfo,
+    provider_key_fallback: Option<String>,
 ) -> codex_protocol::error::Result<SharedAuthProvider> {
-    if let Some(auth) = bearer_auth_for_provider(provider)? {
+    if let Some(auth) = bearer_auth_for_provider(provider, provider_key_fallback)? {
         return Ok(Arc::new(auth));
     }
 
@@ -91,12 +92,28 @@ pub(crate) fn resolve_provider_auth(
 
 fn bearer_auth_for_provider(
     provider: &ModelProviderInfo,
+    provider_key_fallback: Option<String>,
 ) -> codex_protocol::error::Result<Option<BearerAuthProvider>> {
-    if let Some(api_key) = provider.api_key()? {
-        return Ok(Some(BearerAuthProvider::new(api_key)));
+    // Prefer the API key from the configured env var. If the env var is unset we
+    // fall back to a key persisted in config (`experimental_bearer_token`) or, for
+    // providers like MiniMax, a key persisted in `auth.json` before surfacing the
+    // "missing env var" error, so users who saved their key once do not need to
+    // export it on every launch.
+    match provider.api_key() {
+        Ok(Some(api_key)) => return Ok(Some(BearerAuthProvider::new(api_key))),
+        Ok(None) => {}
+        Err(err) => {
+            if provider.experimental_bearer_token.is_none() && provider_key_fallback.is_none() {
+                return Err(err);
+            }
+        }
     }
 
     if let Some(token) = provider.experimental_bearer_token.clone() {
+        return Ok(Some(BearerAuthProvider::new(token)));
+    }
+
+    if let Some(token) = provider_key_fallback {
         return Ok(Some(BearerAuthProvider::new(token)));
     }
 
@@ -130,7 +147,8 @@ mod tests {
     fn unauthenticated_auth_provider_adds_no_headers() {
         let provider =
             create_oss_provider_with_base_url("http://localhost:11434/v1", WireApi::Responses);
-        let auth = resolve_provider_auth(/*auth*/ None, &provider).expect("auth should resolve");
+        let auth = resolve_provider_auth(/*auth*/ None, &provider, /*provider_key_fallback*/ None)
+            .expect("auth should resolve");
 
         assert!(auth.to_auth_headers().is_empty());
     }

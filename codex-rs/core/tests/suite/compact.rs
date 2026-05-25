@@ -273,7 +273,8 @@ fn model_info_with_context_window(slug: &str, context_window: i64) -> ModelInfo 
         .find(|model| model.slug == slug)
         .unwrap_or_else(|| panic!("model `{slug}` missing from models.json"));
     model_info.context_window = Some(context_window);
-    model_info
+    model_info,
+    tier: None,
 }
 
 fn assert_pre_sampling_switch_compaction_requests(

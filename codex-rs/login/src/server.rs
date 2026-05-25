@@ -821,7 +821,7 @@ pub(crate) async fn persist_tokens_async(
             openai_api_key: api_key,
             tokens: Some(tokens),
             last_refresh: Some(Utc::now()),
-            agent_identity: None,
+            ..Default::default()
         };
         save_auth(&codex_home, &auth, auth_credentials_store_mode)?;
         Ok::<_, io::Error>((previous_auth, auth))
@@ -1300,6 +1300,7 @@ mod tests {
 
     fn chatgpt_auth(access_token: &str, refresh_token: &str, account_id: &str) -> AuthDotJson {
         AuthDotJson {
+            minimax_api_key: None,
             auth_mode: Some(AuthMode::Chatgpt),
             openai_api_key: None,
             tokens: Some(TokenData {

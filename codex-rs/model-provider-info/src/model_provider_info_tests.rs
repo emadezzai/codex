@@ -456,3 +456,28 @@ refresh_interval_ms = 0
     assert_eq!(auth.refresh_interval_ms, 0);
     assert_eq!(auth.refresh_interval(), None);
 }
+
+#[test]
+fn test_merge_configured_model_providers_applies_minimax_base_url_override() {
+    let configured_model_providers = std::collections::HashMap::from([(
+        MINIMAX_PROVIDER_ID.to_string(),
+        ModelProviderInfo {
+            base_url: Some("https://api.minimaxi.com/anthropic".to_string()),
+            ..ModelProviderInfo::default()
+        },
+    )]);
+
+    let mut expected = built_in_model_providers(/*openai_base_url*/ None);
+    expected
+        .get_mut(MINIMAX_PROVIDER_ID)
+        .expect("MiniMax provider should be built in")
+        .base_url = Some("https://api.minimaxi.com/anthropic".to_string());
+
+    assert_eq!(
+        merge_configured_model_providers(
+            built_in_model_providers(/*openai_base_url*/ None),
+            configured_model_providers,
+        ),
+        Ok(expected)
+    );
+}

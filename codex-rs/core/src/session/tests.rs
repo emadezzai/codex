@@ -3425,7 +3425,8 @@ fn model_with_default_service_tier(default_service_tier: Option<&str>) -> ModelI
         description: "Priority processing.".to_string(),
     }];
     model_info.default_service_tier = default_service_tier.map(str::to_string);
-    model_info
+    model_info,
+    tier: None,
 }
 
 #[test]

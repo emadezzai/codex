@@ -421,7 +421,7 @@ impl CodexAuth {
                 account_id: Some("account_id".to_string()),
             }),
             last_refresh: Some(Utc::now()),
-            agent_identity: None,
+            ..Default::default()
         };
 
         let client = create_client();
@@ -535,10 +535,23 @@ pub fn login_with_api_key(
     let auth_dot_json = AuthDotJson {
         auth_mode: Some(ApiAuthMode::ApiKey),
         openai_api_key: Some(api_key.to_string()),
-        tokens: None,
-        last_refresh: None,
-        agent_identity: None,
+        ..Default::default()
     };
+    save_auth(codex_home, &auth_dot_json, auth_credentials_store_mode)
+}
+
+/// Persists a MiniMax API key into `auth.json`, preserving any existing
+/// OpenAI/ChatGPT credentials. Used by the onboarding "Sign in with MiniMax"
+/// flow so the MiniMax provider can authenticate without the
+/// `MINIMAX_API_KEY` environment variable being set.
+pub fn login_with_minimax_api_key(
+    codex_home: &Path,
+    api_key: &str,
+    auth_credentials_store_mode: AuthCredentialsStoreMode,
+) -> std::io::Result<()> {
+    let mut auth_dot_json = load_auth_dot_json(codex_home, auth_credentials_store_mode)?
+        .unwrap_or_default();
+    auth_dot_json.minimax_api_key = Some(api_key.to_string());
     save_auth(codex_home, &auth_dot_json, auth_credentials_store_mode)
 }
 
@@ -556,10 +569,8 @@ pub async fn login_with_access_token(
     verified_agent_identity_record(access_token, &base_url).await?;
     let auth_dot_json = AuthDotJson {
         auth_mode: Some(ApiAuthMode::AgentIdentity),
-        openai_api_key: None,
-        tokens: None,
-        last_refresh: None,
         agent_identity: Some(access_token.to_string()),
+        ..Default::default()
     };
     save_auth(codex_home, &auth_dot_json, auth_credentials_store_mode)
 }
@@ -958,10 +969,9 @@ impl AuthDotJson {
 
         Ok(Self {
             auth_mode: Some(ApiAuthMode::ChatgptAuthTokens),
-            openai_api_key: None,
             tokens: Some(tokens),
             last_refresh: Some(Utc::now()),
-            agent_identity: None,
+            ..Default::default()
         })
     }
 
@@ -1358,6 +1368,18 @@ impl AuthManager {
             refresh_lock: Semaphore::new(/*permits*/ 1),
             external_auth: RwLock::new(None),
         })
+    }
+
+    /// Returns the persisted MiniMax API key from `auth.json`, if any.
+    ///
+    /// Reads from storage directly (rather than the cached first-party auth)
+    /// because the MiniMax key is provider-scoped and not part of the
+    /// `CodexAuth` snapshot used for OpenAI/ChatGPT requests.
+    pub fn minimax_api_key(&self) -> Option<String> {
+        load_auth_dot_json(&self.codex_home, self.auth_credentials_store_mode)
+            .ok()
+            .flatten()
+            .and_then(|auth| auth.minimax_api_key)
     }
 
     /// Create an AuthManager with a specific CodexAuth and codex home, for testing only.

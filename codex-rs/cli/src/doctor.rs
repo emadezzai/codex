@@ -3269,6 +3269,7 @@ mod tests {
     #[test]
     fn stored_auth_validation_rejects_missing_api_key() {
         let auth = AuthDotJson {
+            minimax_api_key: None,
             auth_mode: Some(codex_app_server_protocol::AuthMode::ApiKey),
             openai_api_key: None,
             tokens: None,
@@ -3286,6 +3287,7 @@ mod tests {
     #[test]
     fn stored_auth_validation_rejects_missing_chatgpt_tokens() {
         let auth = AuthDotJson {
+            minimax_api_key: None,
             auth_mode: None,
             openai_api_key: None,
             tokens: None,
@@ -3305,6 +3307,7 @@ mod tests {
     #[test]
     fn provider_reachability_mode_uses_api_key_auth() {
         let api_key_auth = AuthDotJson {
+            minimax_api_key: None,
             auth_mode: Some(codex_app_server_protocol::AuthMode::ApiKey),
             openai_api_key: Some("sk-test".to_string()),
             tokens: None,

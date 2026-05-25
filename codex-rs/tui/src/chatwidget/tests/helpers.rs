@@ -281,7 +281,8 @@ fn test_model_info(slug: &str, priority: i32, supports_fast_mode: bool) -> Model
         "context_window": 272_000,
         "experimental_supported_tools": [],
     }))
-    .expect("valid model info")
+    .expect("valid model info"),
+    tier: None,
 }
 
 pub(crate) fn set_fast_mode_test_catalog(chat: &mut ChatWidget) {

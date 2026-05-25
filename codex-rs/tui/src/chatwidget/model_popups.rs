@@ -189,8 +189,21 @@ impl ChatWidget {
                     model: preset_for_event,
                 });
             })];
+            let mut name_suffix_spans = Vec::new();
+            if let Some(tier) = &preset.tier {
+                let tier_label = match tier {
+                    codex_protocol::openai_models::ModelTier::Normal => " (normal)",
+                    codex_protocol::openai_models::ModelTier::HighSpeed => " (high-speed)",
+                };
+                name_suffix_spans.push(tier_label.dim());
+            }
+            if preset.visibility == codex_protocol::openai_models::ModelVisibility::Hide {
+                name_suffix_spans.push(" (legacy)".red().dim());
+            }
+
             items.push(SelectionItem {
                 name: preset.model.clone(),
+                name_suffix_spans,
                 description,
                 is_current,
                 is_default: preset.is_default,

@@ -10,12 +10,21 @@ path = "src/lib.rs"
 test = false
 doctest = false
 
+# The native WebRTC backend (`libwebrtc`/`webrtc-sys`) is gated behind the
+# optional `webrtc` feature. It is off by default because the pinned
+# `webrtc-sys` C++ shim does not build on every toolchain; with the feature
+# disabled the crate falls back to `RealtimeWebrtcError::UnsupportedPlatform`,
+# exactly like a non-macOS build. Enable `webrtc` to restore voice/realtime.
+[features]
+default = []
+webrtc = ["dep:libwebrtc"]
+
 [dependencies]
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
-libwebrtc = { version = "0.3.26", git = "https://github.com/juberti-oai/rust-sdks.git", rev = "e2d1d1d230c6fc9df171ccb181423f957bb3c1f0" }
+libwebrtc = { version = "0.3.26", git = "https://github.com/juberti-oai/rust-sdks.git", rev = "e2d1d1d230c6fc9df171ccb181423f957bb3c1f0", optional = true }
 
 [lints]
 workspace = true

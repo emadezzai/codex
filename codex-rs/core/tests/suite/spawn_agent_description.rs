@@ -49,6 +49,7 @@ fn test_model_info(
     service_tiers: Vec<ModelServiceTier>,
 ) -> ModelInfo {
     ModelInfo {
+        tier: None,
         slug: slug.to_string(),
         display_name: display_name.to_string(),
         description: Some(description.to_string()),
@@ -82,7 +83,8 @@ fn test_model_info(
         auto_compact_token_limit: None,
         effective_context_window_percent: 95,
         experimental_supported_tools: Vec::new(),
-    }
+    },
+    tier: None,
 }
 
 async fn wait_for_model_available(manager: &SharedModelsManager, slug: &str) {
