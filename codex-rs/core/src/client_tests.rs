@@ -103,10 +103,10 @@ fn test_model_info() -> ModelInfo {
         "supports_image_detail_original": false,
         "context_window": 272000,
         "auto_compact_token_limit": null,
-        "experimental_supported_tools": []
+        "experimental_supported_tools": [],
+        "tier": null
     }))
-    .expect("deserialize test model info"),
-    tier: None,
+    .expect("deserialize test model info")
 }
 
 fn test_session_telemetry() -> SessionTelemetry {

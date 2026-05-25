@@ -258,7 +258,71 @@ fn write_permissions_for_paths(
 fn apply_patch_payload_command(payload: &ToolPayload) -> Option<String> {
     match payload {
         ToolPayload::Custom { input } => Some(input.clone()),
+        ToolPayload::Function { arguments } => extract_patch_from_arguments(arguments),
         _ => None,
+    }
+}
+
+fn extract_patch_from_arguments(arguments: &str) -> Option<String> {
+    let parsed: serde_json::Value = serde_json::from_str(arguments).ok()?;
+    match parsed {
+        serde_json::Value::String(s) => Some(s),
+        serde_json::Value::Object(obj) => {
+            if let Some(serde_json::Value::String(s)) = obj.get("patch") {
+                Some(s.clone())
+            } else if let Some(serde_json::Value::String(s)) = obj.get("input") {
+                Some(s.clone())
+            } else if let Some(serde_json::Value::String(s)) = obj.get("command") {
+                Some(s.clone())
+            } else {
+                let mut string_vals: Vec<String> = obj
+                    .values()
+                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                    .collect();
+                if string_vals.len() == 1 {
+                    Some(string_vals.remove(0))
+                } else {
+                    None
+                }
+            }
+        }
+        _ => None,
+    }
+}
+
+fn rewrite_apply_patch_arguments(
+    arguments: &str,
+    patch: &str,
+) -> Result<String, FunctionCallError> {
+    let parsed: serde_json::Value = super::parse_arguments(arguments)?;
+    match parsed {
+        serde_json::Value::String(_) => {
+            serde_json::to_string(&serde_json::Value::String(patch.to_string())).map_err(|err| {
+                FunctionCallError::RespondToModel(format!(
+                    "failed to serialize apply_patch arguments: {err}"
+                ))
+            })
+        }
+        serde_json::Value::Object(mut obj) => {
+            let key = if obj.contains_key("patch") {
+                "patch"
+            } else if obj.contains_key("input") {
+                "input"
+            } else if obj.contains_key("command") {
+                "command"
+            } else {
+                "patch"
+            };
+            obj.insert(key.to_string(), serde_json::Value::String(patch.to_string()));
+            serde_json::to_string(&serde_json::Value::Object(obj)).map_err(|err| {
+                FunctionCallError::RespondToModel(format!(
+                    "failed to serialize apply_patch arguments: {err}"
+                ))
+            })
+        }
+        _ => Err(FunctionCallError::RespondToModel(
+            "apply_patch arguments must be a string or object".to_string(),
+        )),
     }
 }
 
@@ -321,10 +385,13 @@ impl ToolExecutor<ToolInvocation> for ApplyPatchHandler {
             ..
         } = invocation;
 
-        let ToolPayload::Custom { input: patch_input } = payload else {
-            return Err(FunctionCallError::RespondToModel(
-                "apply_patch handler received unsupported payload".to_string(),
-            ));
+        let patch_input = match apply_patch_payload_command(&payload) {
+            Some(input) => input,
+            None => {
+                return Err(FunctionCallError::RespondToModel(
+                    "apply_patch handler received unsupported payload".to_string(),
+                ));
+            }
         };
         let args = match codex_apply_patch::parse_patch(&patch_input) {
             Ok(args) => args,
@@ -441,7 +508,7 @@ impl ToolExecutor<ToolInvocation> for ApplyPatchHandler {
 
 impl CoreToolRuntime for ApplyPatchHandler {
     fn matches_kind(&self, payload: &ToolPayload) -> bool {
-        matches!(payload, ToolPayload::Custom { .. })
+        matches!(payload, ToolPayload::Custom { .. } | ToolPayload::Function { .. })
     }
 
     fn create_diff_consumer(&self) -> Option<Box<dyn ToolArgumentDiffConsumer>> {
@@ -465,6 +532,10 @@ impl CoreToolRuntime for ApplyPatchHandler {
             ToolPayload::Custom { .. } => ToolPayload::Custom {
                 input: patch.to_string(),
             },
+            ToolPayload::Function { arguments } => {
+                let rewritten = rewrite_apply_patch_arguments(&arguments, patch)?;
+                ToolPayload::Function { arguments: rewritten }
+            }
             payload => payload,
         };
         Ok(invocation)

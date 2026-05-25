@@ -80,6 +80,62 @@ async fn post_tool_use_payload_uses_patch_input_and_tool_output() {
     );
 }
 
+#[tokio::test]
+async fn pre_tool_use_payload_with_function_arguments() {
+    let patch = sample_patch();
+    let payload = ToolPayload::Function {
+        arguments: json!({ "patch": patch }).to_string(),
+    };
+    let invocation = invocation_for_payload(payload).await;
+    let handler = ApplyPatchHandler::default();
+
+    assert_eq!(
+        handler.pre_tool_use_payload(&invocation),
+        Some(PreToolUsePayload {
+            tool_name: HookToolName::apply_patch(),
+            tool_input: json!({ "command": patch }),
+        })
+    );
+}
+
+#[tokio::test]
+async fn with_updated_hook_input_rewrites_function_arguments() {
+    let patch = sample_patch();
+    let payload = ToolPayload::Function {
+        arguments: json!({ "patch": "old patch" }).to_string(),
+    };
+    let invocation = invocation_for_payload(payload).await;
+    let handler = ApplyPatchHandler::default();
+
+    let updated_input = json!({ "command": patch });
+    let updated_invocation = handler
+        .with_updated_hook_input(invocation, updated_input)
+        .expect("rewrite success");
+
+    let ToolPayload::Function { arguments } = updated_invocation.payload else {
+        panic!("expected ToolPayload::Function");
+    };
+    let parsed: serde_json::Value = serde_json::from_str(&arguments).unwrap();
+    assert_eq!(parsed["patch"], patch);
+}
+
+#[test]
+fn matches_kind_accepts_custom_and_function_payloads() {
+    let handler = ApplyPatchHandler::default();
+    assert!(handler.matches_kind(&ToolPayload::Custom {
+        input: sample_patch().to_string()
+    }));
+    assert!(handler.matches_kind(&ToolPayload::Function {
+        arguments: "{}".to_string()
+    }));
+    assert!(!handler.matches_kind(&ToolPayload::ToolSearch {
+        arguments: codex_protocol::models::SearchToolCallParams {
+            query: "query".to_string(),
+            limit: None,
+        }
+    }));
+}
+
 #[test]
 fn diff_consumer_streams_apply_patch_changes() {
     let mut consumer = ApplyPatchArgumentDiffConsumer::default();
